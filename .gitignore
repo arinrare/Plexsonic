@@ -8,5 +8,6 @@ data/
 dist/
 coverage/
 .pnpm-store/
+Plexsonic-main
 
 add-license-header.cjs

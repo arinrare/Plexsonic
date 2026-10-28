@@ -10690,6 +10690,8 @@ export async function buildServer(config = loadConfig()) {
           baseUrl: plexState.baseUrl,
           plexToken: plexState.plexToken,
           artistId,
+          sectionId: plexState.musicSectionId,
+          logger: request.log,
         });
         applyCachedRatingOverridesForAccount({ accountId: account.id, plexState, items: albums });
         finalAlbums = albums;
@@ -11103,6 +11105,8 @@ export async function buildServer(config = loadConfig()) {
           baseUrl: plexState.baseUrl,
           plexToken: plexState.plexToken,
           artistId: resolvedArtistDirectoryId,
+          sectionId: plexState.musicSectionId,
+          logger: request.log,
         });
         applyCachedRatingOverridesForAccount({ accountId: account.id, plexState, items: albums });
 

@@ -970,8 +970,29 @@ export async function getArtist({ baseUrl, plexToken, artistId }) {
   return String(item.type || '').toLowerCase() === 'artist' ? item : null;
 }
 
-export async function listArtistAlbums({ baseUrl, plexToken, artistId }) {
-  return fetchAllMetadataPages({
+const ARTIST_RELEASE_FILTERS = [
+  { 'album.format': 'Single' },
+  { 'album.format': 'EP' },
+  { 'album.subformat': 'Compilation' },
+  { 'album.subformat': 'Soundtrack' },
+  { 'album.subformat': 'Live' },
+  { 'album.subformat': 'Remix' },
+  { 'album.subformat': 'Demo' },
+  { 'album.subformat': 'DJ-mix' },
+  { 'album.subformat': 'Mixtape/Street' },
+  { 'album.subformat': 'Spokenword' },
+  { 'album.subformat': 'Interview' },
+  { 'album.subformat': 'Audiobook' },
+];
+
+export async function listArtistAlbums({
+  baseUrl,
+  plexToken,
+  artistId,
+  sectionId = '',
+  logger = null,
+}) {
+  const base = await fetchAllMetadataPages({
     baseUrl,
     plexToken,
     path: `/library/metadata/${encodeURIComponent(artistId)}/children`,
@@ -979,6 +1000,49 @@ export async function listArtistAlbums({ baseUrl, plexToken, artistId }) {
       type: 9,
     },
   });
+  if (!sectionId) {
+    return base;
+  }
+
+  const merged = new Map();
+  for (const album of base) {
+    const key = String(album?.ratingKey ?? '').trim();
+    merged.set(key || `base:${merged.size}`, album);
+  }
+
+  // Plex's /children endpoint only returns base albums. Singles, EPs, live,
+  // compilations, etc. are section queries filtered by release type.
+  const results = await Promise.allSettled(
+    ARTIST_RELEASE_FILTERS.map(async (filter) => {
+      const items = await fetchAllMetadataPages({
+        baseUrl,
+        plexToken,
+        path: `/library/sections/${encodeURIComponent(sectionId)}/all`,
+        searchParams: {
+          type: 9,
+          'artist.id': artistId,
+          ...filter,
+        },
+      });
+      logger?.debug?.({ filter, count: items.length }, 'artist release filter');
+      return items;
+    }),
+  );
+
+  for (const result of results) {
+    if (result.status !== 'fulfilled') {
+      logger?.warn?.({ err: String(result.reason) }, 'artist release filter failed');
+      continue;
+    }
+    for (const album of result.value) {
+      const key = String(album?.ratingKey ?? '').trim();
+      if (key && !merged.has(key)) merged.set(key, album);
+    }
+  }
+
+  const albums = [...merged.values()];
+  logger?.debug?.({ artistId, base: base.length, merged: albums.length }, 'artist albums merged');
+  return albums;
 }
 
 export async function listArtistTracks({ baseUrl, plexToken, artistId }) {
